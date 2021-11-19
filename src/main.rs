@@ -1,4 +1,4 @@
-use convert_case::{Case, Casing};
+extern crate inflector;
 use serde_json::Value;
 use std::ffi::OsStr;
 use std::fs::{create_dir_all, read_to_string, File};
@@ -107,7 +107,11 @@ fn transform_to_css_variables(contents: &Value) -> Result<(String, String), serd
         .map(|(prefix_list, value)| {
             let css_varname = prefix_list
                 .iter()
-                .map(|key_name| key_name.to_case(Case::Kebab))
+                .map(|key_name| {
+                    inflector::cases::kebabcase::to_kebab_case(
+                        &inflector::string::singularize::to_singular(&key_name),
+                    )
+                })
                 .collect::<Vec<String>>()
                 .join("-");
             return format!("  --{}: {};", css_varname, value);
@@ -134,7 +138,11 @@ fn transform_to_scss_variables(contents: &Value) -> Result<(String, String), ser
         .map(|(prefix_list, value)| {
             let css_varname = prefix_list
                 .iter()
-                .map(|key_name| key_name.to_case(Case::Kebab))
+                .map(|key_name| {
+                    inflector::cases::kebabcase::to_kebab_case(
+                        &inflector::string::singularize::to_singular(&key_name),
+                    )
+                })
                 .collect::<Vec<String>>()
                 .join("-");
             return format!("${}: {};", css_varname, value.to_string());
