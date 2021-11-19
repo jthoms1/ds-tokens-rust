@@ -137,7 +137,7 @@ fn transform_to_scss_variables(contents: &Value) -> Result<(String, String), ser
                 .map(|key_name| key_name.to_case(Case::Kebab))
                 .collect::<Vec<String>>()
                 .join("-");
-            return format!("${}: {};", css_varname, value);
+            return format!("${}: {};", css_varname, value.to_string());
         })
         .collect::<Vec<String>>()
         .join("\n");
@@ -158,10 +158,10 @@ fn convert_to_flat_list(
         Value::Array(ref array_values) => array_values
             .iter()
             .enumerate()
-            .map(|(index, x)| {
+            .flat_map(|(index, x)| {
                 let mut newvec = prefix_list.to_vec();
                 newvec.push((index + 1).to_string());
-                return (newvec, x.to_string());
+                return convert_to_flat_list(x, value_list.to_vec(), newvec);
             })
             .collect(),
 
@@ -173,6 +173,10 @@ fn convert_to_flat_list(
                 convert_to_flat_list(&object[key], value_list.to_vec(), newvec)
             })
             .collect(),
+
+        Value::String(ref str) => vec![(prefix_list, str.to_string())],
+
+        Value::Number(ref num) => vec![(prefix_list, num.to_string())],
 
         _ => vec![(prefix_list, value.to_string())],
     };
