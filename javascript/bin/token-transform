@@ -1,0 +1,13 @@
+#!/usr/bin/env node
+'use strict';
+
+const path = require('path');
+
+const filePath = path.join(process.cwd(), process.argv[2]);
+let outDir;
+if (process.argv[3] != null) {
+  outDir = path.join(process.cwd(), process.argv[3]);
+}
+
+var cli = require('../dist/index');
+cli.run(filePath, outDir);

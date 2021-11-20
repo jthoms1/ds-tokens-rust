@@ -1,0 +1,43 @@
+{
+  "name": "test-token-transform",
+  "version": "0.0.5",
+  "description": "Documentation generator",
+  "types": "dist/src/index.d.ts",
+  "module": "dist/src/index.esm.js",
+  "main": "dist/src/index.cjs.js",
+  "bin": {
+    "token-transform": "bin/token-transform"
+  },
+  "scripts": {
+    "start": "tsc --watch --preserveWatchOutput",
+    "test": "jest",
+    "build": "tsc",
+    "release": "../../node_modules/.bin/np"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^8.0.0",
+    "@types/js-yaml": "^3.12.1"
+  },
+  "dependencies": {
+    "fs-extra": "^8.1.0",
+    "js-yaml": "^3.13.1",
+    "typescript": "^3.5.3"
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.(js|ts|tsx)$": "<rootDir>/test/jest.preprocessor.js"
+    },
+    "testPathIgnorePatterns": [
+      "<rootDir>/node_modules/",
+      "<rootDir>/dist/"
+    ],
+    "testRegex": "(\\.(test|spec))\\.(ts?|tsx?|jsx?)$",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "json",
+      "jsx"
+    ]
+  }
+}
