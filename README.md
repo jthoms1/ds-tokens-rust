@@ -1,0 +1,1 @@
+This is an experiment of converting a node script into rust. It is just a starting point for my journey. Issues and PRs requested to help move this along faster. Thank you!
