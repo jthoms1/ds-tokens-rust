@@ -1,11 +1,40 @@
-extern crate inflector;
+mod lib;
+use lib::{css_variables, json, scss_variables, typescript, FlatTokenList};
+use rayon::prelude::*;
 use serde_json::Value;
 use std::ffi::OsStr;
+use std::fmt;
 use std::fs::{create_dir_all, read_to_string, File};
 use std::io::ErrorKind;
 use std::io::Write;
-use std::path::Path;
+use std::str::FromStr;
+use std::string::ToString;
 use structopt::StructOpt;
+
+#[derive(Debug)]
+enum Transform {
+    CSS,
+    SCSS,
+    JSON,
+    TS,
+}
+impl fmt::Display for Transform {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+impl FromStr for Transform {
+    type Err = ();
+    fn from_str(input: &str) -> Result<Transform, Self::Err> {
+        match input {
+            "css" => Ok(Transform::CSS),
+            "ts" => Ok(Transform::TS),
+            "json" => Ok(Transform::JSON),
+            "scss" => Ok(Transform::SCSS),
+            _ => Err(()),
+        }
+    }
+}
 
 #[derive(StructOpt)]
 struct Cli {
@@ -16,15 +45,13 @@ struct Cli {
 #[derive(Debug)]
 struct CustomError(String);
 
-type FlatTokenList = Vec<(Vec<String>, String)>;
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = Cli::from_args().file_path;
     let out_dir = Cli::from_args().out_dir;
-
-    let output_directory = Path::new(&out_dir);
-    let file_stem = Path::new(&path).file_stem().unwrap();
-    let extension = Path::new(&path).extension().and_then(OsStr::to_str);
+    let file_types = ["css", "json", "ts", "scss"];
+    let output_directory = &out_dir;
+    let file_stem = &path.file_stem().unwrap();
+    let extension = &path.extension().and_then(OsStr::to_str);
     let content = read_to_string(&path)?;
 
     // Parse the contents and use the appropriate serializer from file type
@@ -44,113 +71,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Create JSON output
-    let json_contents = transform_to_json(&contents).unwrap();
-    let mut json_file = File::create(
-        output_directory
-            .join(file_stem)
-            .with_extension(json_contents.0),
-    )?;
-    json_file.write_all(json_contents.1.as_bytes())?;
+    let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
 
-    // Create TS output
-    let ts_contents = transform_to_typescript(&contents).unwrap();
-    let mut ts_file = File::create(
-        output_directory
-            .join(file_stem)
-            .with_extension(ts_contents.0),
-    )?;
-    ts_file.write_all(ts_contents.1.as_bytes())?;
-
-    // Create CSS Variable output
-    let css_contents = transform_to_css_variables(&contents).unwrap();
-    let mut css_file = File::create(
-        output_directory
-            .join(file_stem)
-            .with_extension(css_contents.0),
-    )?;
-    css_file.write_all(css_contents.1.as_bytes())?;
-
-    // Create SCSS Variable output
-    let scss_contents = transform_to_scss_variables(&contents).unwrap();
-    let mut scss_file = File::create(
-        output_directory
-            .join(file_stem)
-            .with_extension(scss_contents.0),
-    )?;
-    scss_file.write_all(scss_contents.1.as_bytes())?;
+    file_types
+        .par_iter()
+        .map(|file_type| {
+            let results = match Transform::from_str(&file_type).unwrap() {
+                Transform::JSON => json(&contents).unwrap(),
+                Transform::TS => typescript(&contents).unwrap(),
+                Transform::CSS => css_variables(&flat_token_list).unwrap(),
+                Transform::SCSS => scss_variables(&flat_token_list).unwrap(),
+            };
+            let file_results = File::create(
+                output_directory
+                    .join(file_stem)
+                    .with_extension(file_type.to_string()),
+            );
+            match file_results {
+                Ok(mut json_file) => json_file.write_all(results.as_bytes()),
+                Err(e) => panic!("Problem creating the file {:?}", e),
+            }
+        })
+        .count();
 
     Ok(())
-}
-
-fn transform_to_json(contents: &Value) -> Result<(String, String), serde_json::Error> {
-    let output = format!("{:#}", contents);
-
-    return Ok(("json".to_string(), output));
-}
-
-fn transform_to_typescript(contents: &Value) -> Result<(String, String), serde_json::Error> {
-    let output = format!(
-        "
-export const themeData = {:#} as const;\n
-export type ThemeType = typeof themeData;
-  ",
-        contents
-    );
-    return Ok(("ts".to_string(), output));
-}
-
-fn transform_to_css_variables(contents: &Value) -> Result<(String, String), serde_json::Error> {
-    let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
-    let results = flat_token_list
-        .iter()
-        .map(|(prefix_list, value)| {
-            let css_varname = prefix_list
-                .iter()
-                .map(|key_name| {
-                    inflector::cases::kebabcase::to_kebab_case(
-                        &inflector::string::singularize::to_singular(&key_name),
-                    )
-                })
-                .collect::<Vec<String>>()
-                .join("-");
-            return format!("  --{}: {};", css_varname, value);
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
-
-    let output = format!(
-        "
-:root {{ 
-{}
-}}
-",
-        results
-    );
-
-    return Ok(("css".to_string(), output));
-}
-
-fn transform_to_scss_variables(contents: &Value) -> Result<(String, String), serde_json::Error> {
-    let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
-    let output = flat_token_list
-        .iter()
-        .map(|(prefix_list, value)| {
-            let css_varname = prefix_list
-                .iter()
-                .map(|key_name| {
-                    inflector::cases::kebabcase::to_kebab_case(
-                        &inflector::string::singularize::to_singular(&key_name),
-                    )
-                })
-                .collect::<Vec<String>>()
-                .join("-");
-            return format!("${}: {};", css_varname, value.to_string());
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
-
-    return Ok(("scss".to_string(), output));
 }
 
 fn convert_to_flat_list(
@@ -162,7 +106,8 @@ fn convert_to_flat_list(
 
     let mut new_token_values: FlatTokenList = match value {
         Value::Null => Vec::new(),
-
+        Value::String(ref str) => vec![(prefix_list, str.to_string())],
+        Value::Number(ref num) => vec![(prefix_list, num.to_string())],
         Value::Array(ref array_values) => array_values
             .iter()
             .enumerate()
@@ -172,7 +117,6 @@ fn convert_to_flat_list(
                 return convert_to_flat_list(x, value_list.to_vec(), newvec);
             })
             .collect(),
-
         Value::Object(ref object) => object
             .keys()
             .flat_map(|key| {
@@ -181,11 +125,6 @@ fn convert_to_flat_list(
                 convert_to_flat_list(&object[key], value_list.to_vec(), newvec)
             })
             .collect(),
-
-        Value::String(ref str) => vec![(prefix_list, str.to_string())],
-
-        Value::Number(ref num) => vec![(prefix_list, num.to_string())],
-
         _ => vec![(prefix_list, value.to_string())],
     };
 
