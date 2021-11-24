@@ -1,13 +1,51 @@
 use serde_json::Value;
+use std::fmt;
+use std::str::FromStr;
 
-pub type FlatTokenList = Vec<(Vec<String>, String)>;
+type FlatTokenList = Vec<(Vec<String>, String)>;
 
-pub fn json(contents: &Value) -> Result<String, serde_json::Error> {
+#[derive(Debug)]
+pub enum Transform {
+    CSS,
+    SCSS,
+    JSON,
+    TS,
+}
+impl fmt::Display for Transform {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+impl FromStr for Transform {
+    type Err = ();
+    fn from_str(input: &str) -> Result<Transform, Self::Err> {
+        match input.to_lowercase().as_str() {
+            "css" => Ok(Transform::CSS),
+            "ts" => Ok(Transform::TS),
+            "json" => Ok(Transform::JSON),
+            "scss" => Ok(Transform::SCSS),
+            _ => Err(()),
+        }
+    }
+}
+
+pub fn transform_tokens(file_type: &String, contents: &serde_json::Value) -> String {
+    let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
+    let results = match Transform::from_str(file_type).unwrap() {
+        Transform::JSON => json(&contents).unwrap(),
+        Transform::TS => typescript(&contents).unwrap(),
+        Transform::CSS => css_variables(&flat_token_list).unwrap(),
+        Transform::SCSS => scss_variables(&flat_token_list).unwrap(),
+    };
+    return results;
+}
+
+fn json(contents: &Value) -> Result<String, serde_json::Error> {
     let output = format!("{:#}", contents);
     return Ok(output);
 }
 
-pub fn typescript(contents: &Value) -> Result<String, serde_json::Error> {
+fn typescript(contents: &Value) -> Result<String, serde_json::Error> {
     let output = format!(
         "
 export const themeData = {:#} as const;\n
@@ -18,7 +56,7 @@ export type ThemeType = typeof themeData;
     return Ok(output);
 }
 
-pub fn scss_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
+fn scss_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
     let output = flat_token_list
         .iter()
         .map(|(prefix_list, value)| {
@@ -39,7 +77,7 @@ pub fn scss_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_j
     return Ok(output);
 }
 
-pub fn css_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
+fn css_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
     let results = flat_token_list
         .iter()
         .map(|(prefix_list, value)| {
@@ -67,4 +105,40 @@ pub fn css_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_js
     );
 
     return Ok(output);
+}
+
+fn convert_to_flat_list(
+    value: &Value,
+    value_list: FlatTokenList,
+    prefix_list: Vec<String>,
+) -> FlatTokenList {
+    let mut new_value_list = value_list.to_vec();
+
+    let mut new_token_values: FlatTokenList = match value {
+        Value::Null => Vec::new(),
+        Value::String(ref str) => vec![(prefix_list, str.to_string())],
+        Value::Number(ref num) => vec![(prefix_list, num.to_string())],
+        Value::Array(ref array_values) => array_values
+            .iter()
+            .enumerate()
+            .flat_map(|(index, x)| {
+                let mut newvec = prefix_list.to_vec();
+                newvec.push((index + 1).to_string());
+                return convert_to_flat_list(x, value_list.to_vec(), newvec);
+            })
+            .collect(),
+        Value::Object(ref object) => object
+            .keys()
+            .flat_map(|key| {
+                let mut newvec = prefix_list.to_vec();
+                newvec.push(key.to_string());
+                convert_to_flat_list(&object[key], value_list.to_vec(), newvec)
+            })
+            .collect(),
+        _ => vec![(prefix_list, value.to_string())],
+    };
+
+    new_value_list.append(&mut new_token_values);
+
+    return new_value_list;
 }
