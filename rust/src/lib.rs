@@ -1,32 +1,16 @@
 use serde_json::Value;
-use std::fmt;
 use std::str::FromStr;
+use strum_macros::{EnumString, EnumVariantNames};
 
 type FlatTokenList = Vec<(Vec<String>, String)>;
 
-#[derive(Debug)]
+#[derive(Debug, EnumString, EnumVariantNames)]
+#[strum(serialize_all = "lowercase")]
 pub enum Transform {
     CSS,
     SCSS,
     JSON,
     TS,
-}
-impl fmt::Display for Transform {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
-impl FromStr for Transform {
-    type Err = ();
-    fn from_str(input: &str) -> Result<Transform, Self::Err> {
-        match input.to_lowercase().as_str() {
-            "css" => Ok(Transform::CSS),
-            "ts" => Ok(Transform::TS),
-            "json" => Ok(Transform::JSON),
-            "scss" => Ok(Transform::SCSS),
-            _ => Err(()),
-        }
-    }
 }
 
 pub fn transform_tokens(file_type: &String, contents: &serde_json::Value) -> String {

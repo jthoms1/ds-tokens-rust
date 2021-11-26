@@ -8,6 +8,7 @@ use std::io::ErrorKind;
 use std::io::Write;
 use std::string::ToString;
 use structopt::StructOpt;
+use strum::VariantNames;
 
 #[derive(StructOpt)]
 struct Cli {
@@ -19,13 +20,12 @@ struct Cli {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = Cli::from_args().file_path;
     let out_dir = Cli::from_args().out_dir;
-    let file_types = match Cli::from_args().file_types.is_empty() {
-        true => vec![
-            Transform::CSS.to_string(),
-            Transform::TS.to_string(),
-            Transform::SCSS.to_string(),
-            Transform::JSON.to_string(),
-        ],
+    let file_types: Vec<String> = match Cli::from_args().file_types.is_empty() {
+        true => Transform::VARIANTS
+            .to_vec()
+            .into_iter()
+            .map(|str| str.to_owned())
+            .collect(),
         false => Cli::from_args().file_types,
     };
 
