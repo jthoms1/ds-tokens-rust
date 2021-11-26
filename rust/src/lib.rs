@@ -1,9 +1,9 @@
 use serde_json::Value;
-use strum_macros::{EnumString, EnumVariantNames};
+use strum_macros::{Display, EnumString, EnumVariantNames};
 
 type FlatTokenList = Vec<(Vec<String>, String)>;
 
-#[derive(Debug, EnumString, EnumVariantNames)]
+#[derive(Debug, EnumString, EnumVariantNames, Display)]
 #[strum(serialize_all = "lowercase")]
 pub enum Transform {
     CSS,
@@ -12,11 +12,11 @@ pub enum Transform {
     TS,
 }
 pub trait Process {
-    fn process(self, contents: &Value) -> Result<String, serde_json::Error>;
+    fn process(&self, contents: &Value) -> Result<String, serde_json::Error>;
 }
 
 impl Process for Transform {
-    fn process(self, contents: &Value) -> Result<String, serde_json::Error> {
+    fn process(&self, contents: &Value) -> Result<String, serde_json::Error> {
         return match self {
             Transform::JSON => process_json(contents),
             Transform::TS => process_ts(contents),

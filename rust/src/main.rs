@@ -54,15 +54,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     file_types
         .par_iter()
-        .map(|file_type| {
-            let results = Transform::from_str(file_type)
-                .unwrap()
-                .process(&contents)
-                .unwrap();
+        .filter_map(|file_type| match Transform::from_str(file_type) {
+            Ok(file_type) => Some(file_type),
+            Err(_) => {
+                println!("Transform type {} is not supported", file_type);
+                return None;
+            }
+        })
+        .map(|transform_type| {
+            let results = transform_type.process(&contents).unwrap();
             let file_results = File::create(
                 output_directory
                     .join(file_stem)
-                    .with_extension(file_type.to_string().to_lowercase()),
+                    .with_extension(transform_type.to_string()),
             );
             match file_results {
                 Ok(mut file) => file.write_all(results.as_bytes()),
