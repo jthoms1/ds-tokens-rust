@@ -1,5 +1,4 @@
 use serde_json::Value;
-use std::str::FromStr;
 use strum_macros::{EnumString, EnumVariantNames};
 
 type FlatTokenList = Vec<(Vec<String>, String)>;
@@ -12,24 +11,33 @@ pub enum Transform {
     JSON,
     TS,
 }
-
-pub fn transform_tokens(file_type: &String, contents: &serde_json::Value) -> String {
-    let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
-    let results = match Transform::from_str(file_type).unwrap() {
-        Transform::JSON => json(&contents).unwrap(),
-        Transform::TS => typescript(&contents).unwrap(),
-        Transform::CSS => css_variables(&flat_token_list).unwrap(),
-        Transform::SCSS => scss_variables(&flat_token_list).unwrap(),
-    };
-    return results;
+pub trait Process {
+    fn process(self, contents: &Value) -> Result<String, serde_json::Error>;
 }
 
-fn json(contents: &Value) -> Result<String, serde_json::Error> {
+impl Process for Transform {
+    fn process(self, contents: &Value) -> Result<String, serde_json::Error> {
+        return match self {
+            Transform::JSON => process_json(contents),
+            Transform::TS => process_ts(contents),
+            Transform::SCSS => {
+                let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
+                return process_scss(&flat_token_list);
+            }
+            Transform::CSS => {
+                let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
+                return process_css(&flat_token_list);
+            }
+        };
+    }
+}
+
+fn process_json(contents: &Value) -> Result<String, serde_json::Error> {
     let output = format!("{:#}", contents);
     return Ok(output);
 }
 
-fn typescript(contents: &Value) -> Result<String, serde_json::Error> {
+fn process_ts(contents: &Value) -> Result<String, serde_json::Error> {
     let output = format!(
         "
 export const themeData = {:#} as const;\n
@@ -40,7 +48,7 @@ export type ThemeType = typeof themeData;
     return Ok(output);
 }
 
-fn scss_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
+fn process_scss(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
     let output = flat_token_list
         .iter()
         .map(|(prefix_list, value)| {
@@ -61,7 +69,7 @@ fn scss_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_json:
     return Ok(output);
 }
 
-fn css_variables(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
+fn process_css(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
     let results = flat_token_list
         .iter()
         .map(|(prefix_list, value)| {

@@ -1,11 +1,12 @@
 mod lib;
-use lib::{transform_tokens, Transform};
+use lib::{Process, Transform};
 use rayon::prelude::*;
 use serde_json::Value;
 use std::ffi::OsStr;
 use std::fs::{create_dir_all, read_to_string, File};
 use std::io::ErrorKind;
 use std::io::Write;
+use std::str::FromStr;
 use std::string::ToString;
 use structopt::StructOpt;
 use strum::VariantNames;
@@ -54,7 +55,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     file_types
         .par_iter()
         .map(|file_type| {
-            let results = transform_tokens(file_type, &contents);
+            let results = Transform::from_str(file_type)
+                .unwrap()
+                .process(&contents)
+                .unwrap();
             let file_results = File::create(
                 output_directory
                     .join(file_stem)
