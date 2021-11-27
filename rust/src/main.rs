@@ -11,7 +11,8 @@ use std::string::ToString;
 use structopt::StructOpt;
 use strum::VariantNames;
 
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
 #[derive(StructOpt)]
 struct Cli {
