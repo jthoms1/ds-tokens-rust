@@ -1,15 +1,15 @@
 use serde_json::Value;
 use strum_macros::{Display, EnumString, EnumVariantNames};
 
-type FlatTokenList = Vec<(Vec<String>, String)>;
+type FlatTokenListItem = (Vec<String>, String);
 
 #[derive(Debug, EnumString, EnumVariantNames, Display)]
 #[strum(serialize_all = "lowercase")]
 pub enum Transform {
-    CSS,
-    SCSS,
-    JSON,
-    TS,
+    Css,
+    Scss,
+    Json,
+    Ts,
 }
 pub trait Process {
     fn process(&self, contents: &Value) -> Result<String, serde_json::Error>;
@@ -17,24 +17,24 @@ pub trait Process {
 
 impl Process for Transform {
     fn process(&self, contents: &Value) -> Result<String, serde_json::Error> {
-        return match self {
-            Transform::JSON => process_json(contents),
-            Transform::TS => process_ts(contents),
-            Transform::SCSS => {
-                let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
-                return process_scss(&flat_token_list);
+        match self {
+            Transform::Json => process_json(contents),
+            Transform::Ts => process_ts(contents),
+            Transform::Scss => {
+                let flat_token_list = convert_to_flat_list(contents, vec![], vec![]);
+                process_scss(&flat_token_list)
+            },
+            Transform::Css => {
+                let flat_token_list = convert_to_flat_list(contents, vec![], vec![]);
+                process_css(&flat_token_list)
             }
-            Transform::CSS => {
-                let flat_token_list = convert_to_flat_list(&contents, vec![], vec![]);
-                return process_css(&flat_token_list);
-            }
-        };
+        }
     }
 }
 
 fn process_json(contents: &Value) -> Result<String, serde_json::Error> {
     let output = format!("{:#}", contents);
-    return Ok(output);
+    Ok(output)
 }
 
 fn process_ts(contents: &Value) -> Result<String, serde_json::Error> {
@@ -45,10 +45,10 @@ export type ThemeType = typeof themeData;
   ",
         contents
     );
-    return Ok(output);
+    Ok(output)
 }
 
-fn process_scss(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
+fn process_scss(flat_token_list: &[(Vec<String>, String)]) -> Result<String, serde_json::Error> {
     let output = flat_token_list
         .iter()
         .map(|(prefix_list, value)| {
@@ -56,7 +56,7 @@ fn process_scss(flat_token_list: &FlatTokenList) -> Result<String, serde_json::E
                 .iter()
                 .map(|key_name| {
                     inflector::cases::kebabcase::to_kebab_case(
-                        &inflector::string::singularize::to_singular(&key_name),
+                        &inflector::string::singularize::to_singular(key_name),
                     )
                 })
                 .collect::<Vec<String>>()
@@ -66,10 +66,10 @@ fn process_scss(flat_token_list: &FlatTokenList) -> Result<String, serde_json::E
         .collect::<Vec<String>>()
         .join("\n");
 
-    return Ok(output);
+    Ok(output)
 }
 
-fn process_css(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Error> {
+fn process_css(flat_token_list: &[(Vec<String>, String)]) -> Result<String, serde_json::Error> {
     let results = flat_token_list
         .iter()
         .map(|(prefix_list, value)| {
@@ -77,7 +77,7 @@ fn process_css(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Er
                 .iter()
                 .map(|key_name| {
                     inflector::cases::kebabcase::to_kebab_case(
-                        &inflector::string::singularize::to_singular(&key_name),
+                        &inflector::string::singularize::to_singular(key_name),
                     )
                 })
                 .collect::<Vec<String>>()
@@ -96,17 +96,17 @@ fn process_css(flat_token_list: &FlatTokenList) -> Result<String, serde_json::Er
         results
     );
 
-    return Ok(output);
+    Ok(output)
 }
 
 fn convert_to_flat_list(
     value: &Value,
-    value_list: FlatTokenList,
+    value_list: Vec<FlatTokenListItem>,
     prefix_list: Vec<String>,
-) -> FlatTokenList {
+) -> Vec<FlatTokenListItem> {
     let mut new_value_list = value_list.to_vec();
 
-    let mut new_token_values: FlatTokenList = match value {
+    let mut new_token_values: Vec<FlatTokenListItem> = match value {
         Value::Null => Vec::new(),
         Value::String(ref str) => vec![(prefix_list, str.to_string())],
         Value::Number(ref num) => vec![(prefix_list, num.to_string())],
@@ -116,7 +116,7 @@ fn convert_to_flat_list(
             .flat_map(|(index, x)| {
                 let mut newvec = prefix_list.to_vec();
                 newvec.push((index + 1).to_string());
-                return convert_to_flat_list(x, value_list.to_vec(), newvec);
+                convert_to_flat_list(x, value_list.to_vec(), newvec)
             })
             .collect(),
         Value::Object(ref object) => object
@@ -132,5 +132,5 @@ fn convert_to_flat_list(
 
     new_value_list.append(&mut new_token_values);
 
-    return new_value_list;
+    new_value_list
 }

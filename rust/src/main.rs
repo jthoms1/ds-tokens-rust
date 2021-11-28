@@ -24,6 +24,7 @@ struct Cli {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = Cli::from_args().file_path;
     let out_dir = Cli::from_args().out_dir;
+
     let file_types: Vec<String> = match Cli::from_args().file_types.is_empty() {
         true => Transform::VARIANTS
             .to_vec()
@@ -61,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(file_type) => Some(file_type),
             Err(_) => {
                 println!("Transform type {} is not supported", file_type);
-                return None;
+                None
             }
         })
         .map(|transform_type| {
